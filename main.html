@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Цагаан Сарын Асуулт Хариулт</title>
+    <style>
+        :root { --primary: #003366; --gold: #D4AF37; --light: #f4f4f9; }
+        body { font-family: 'Arial', sans-serif; background: var(--light); display: flex; justify-content: center; padding: 20px; }
+        .quiz-container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        h1 { color: var(--primary); text-align: center; border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-top: 0; }
+        .hidden { display: none; }
+        input[type="text"] { width: 100%; padding: 12px; margin: 20px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #002244; transform: translateY(-2px); }
+        .options { list-style: none; padding: 0; }
+        .options li { margin: 10px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer; transition: 0.2s; }
+        .options li:hover { background: #f0f4f8; border-color: var(--primary); }
+        .selected { background: var(--primary) !important; color: white; border-color: var(--primary) !important; }
+        .rank-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .rank-table th, .rank-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .rank-table th { background: var(--primary); color: white; }
+        .progress { font-size: 14px; color: #666; margin-bottom: 10px; text-align: right; }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <h1>🌙 Цагаан Сарын Quiz</h1>
+
+    <div id="login-step">
+        <p>Та нэрээ оруулж асуулт хариултыг эхлүүлнэ үү:</p>
+        <input type="text" id="username" placeholder="Таны нэр...">
+        <button onclick="startQuiz()">Эхлүүлэх</button>
+    </div>
+
+    <div id="quiz-step" class="hidden">
+        <div class="progress" id="progress-text">Асуулт: 1 / 10</div>
+        <div id="question-area"></div>
+        <button id="next-btn" onclick="nextQuestion()">Дараагийнх</button>
+    </div>
+
+    <div id="result-step" class="hidden">
+        <h2>Баяр хүргэе, <span id="display-name"></span>!</h2>
+        <p style="font-size: 20px;">Таны оноо: <strong id="score-val"></strong> / 10</p>
+        
+        <h3>🏆 Лидерүүдийн самбар:</h3>
+        <table class="rank-table" id="leaderboard">
+            <thead><tr><th>Байр</th><th>Нэр</th><th>Оноо</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <br>
+        <button onclick="location.reload()">Дахин эхлэх</button>
+    </div>
+</div>
+
+<script>
+    const questionPool = [
+        { q: "Битүүний өдөр гэж ямар өдрийг хэлэх вэ?", a: ["Сар гарахгүй тас харанхуй өдөр", "Сар бүтэн харагдах өдөр", "Нар хиртэх өдөр"], c: 0 },
+        { q: "Гэрийнхээ босгоны дээд талд яагаад мөс тавьдаг вэ?", a: ["Гэр хөргөх гэж", "Лхам бурхны морийг ундаалах гэж", "Муу совингоос сэргийлж"], c: 1 },
+        { q: "Ахмад хүнтэй золгохдоо гараа яаж барих вэ?", a: ["Гараа дээгүүр нь гаргах", "Гарыг нь доороос нь түших", "Гараас нь чанга атгах"], c: 1 },
+        { q: "Эхнэр нөхөр хоёр хоорондоо золгодог уу?", a: ["Тийм", "Үгүй, нэг бие гэж үздэг", "Ахмад нь зөвшөөрвөл"], c: 1 },
+        { q: "Хөөрөг зөрүүлэхдээ толгойг нь яадаг вэ?", a: ["Бүрэн сугалж авна", "Бага зэрэг дутуу сугална", "Огт сугалахгүй"], c: 1 },
+        { q: "Идээ засахдаа үеийн тоог яаж сонгодог вэ?", a: ["Сонгой тоогоор", "Тэгш тоогоор", "Дурын тоогоор"], c: 0 },
+        { q: "Жаргал, Зовлон тоолохдоо хаанаас эхэлдэг вэ?", a: ["Дээд үеэс", "Доод үеэс", "Дунд үеэс"], c: 1 },
+        { q: "Ууцны дээр хамгийн түрүүнд ямар мах тавьдаг вэ?", a: ["Хавирга", "Чүүж (сээр)", "Сүүл"], c: 1 },
+        { q: "Сүүгээр засах ёсонд юуг заавал байлгадаг вэ?", a: ["Цагаан идээний дээж", "Чихэр", "Жимс"], c: 0 },
+        { q: "Буузыг яагаад заавал битүүний өдөр иддэг вэ?", a: ["Амттай учраас", "Ирэх жил баян цатгалан байхыг бэлгэдэж", "Зөвхөн хүүхдэд зориулсан"], c: 1 },
+        { q: "Монгол билгийн тооллыг юу гэж нэрлэдэг вэ?", a: ["Төгсбуянт", "Григорийн", "Хятад"], c: 0 },
+        { q: "12 жилийн хамгийн эхний жил аль нь вэ?", a: ["Бар", "Хулгана", "Луу"], c: 1 },
+        { q: "Шороон үхрийн шинж гэж юуг тодорхойлдог вэ?", a: ["Цаг агаар, жилийн өнгийг", "Хүмүүсийн зан аашийг", "Зах зээлийн үнийг"], c: 0 },
+        { q: "Социализмын үед ямар нэрээр тэмдэглэдэг байсан бэ?", a: ["Хаврын баяр", "Нэгдэлчдийн баяр", "Найрамдлын баяр"], c: 1 },
+        { q: "Чингис хаан яагаад 'Цагаан сар' гэж нэрлэсэн бэ?", a: ["Цас их орсон тул", "Ариун сэтгэл, сүүн бэлгэдлийг бодож", "Цагаан дээл өмссөн тул"], c: 1 },
+        { q: "Алаг мэлхий тоглохдоо юу ашигладаг вэ?", a: ["Мод", "Шагай", "Чулуу"], c: 1 },
+        { q: "Малгайгаа яагаад ширээн дээр тавьж болохгүй вэ?", a: ["Бохир учраас", "Хийморь сүлдээ дээдэлдэг тул", "Зай эзэлдэг тул"], c: 1 },
+        { q: "Хүүхдэд бэлэг өгөх нь ямар учиртай вэ?", a: ["Зөвхөн баярлуулах", "Хишиг буян түгээж, өсөх бэлгэдэл", "Тоглуулах"], c: 1 },
+        { q: "Даалин гэж юу вэ?", a: ["Хөөрөгний уут", "Бүс", "Оймс"], c: 0 },
+        { q: "Үйчүүр тоглоомд ямар дүрс байдаг вэ?", a: ["Зөвхөн мал", "Ан амьтад", "Шувууд"], c: 1 },
+        { q: "Шинийн нэгэнд хог гаргаж хаяж болох уу?", a: ["Тийм", "Үгүй, буян хишгээ гаргана гэдэг", "Зөвхөн орой болно"], c: 1 },
+        { q: "Даага далантай юу гэж хэнээс асуудаг вэ?", a: ["Малчин хүнээс", "Хотын хүнээс", "Хүүхдээс"], c: 0 },
+        { q: "Зүг мөр гаргахдаа юуг хардаг вэ?", a: ["Жил, суудал", "Өндөр, жин", "Хаалганы чиглэл"], c: 0 },
+        { q: "Шөнө хувцас гадаа хонуулж болохгүй учир?", a: ["Хөлдөх", "Муу энерги, сүүдэр орох", "Хулгай"], c: 1 },
+        { q: "Цагаан сараар уйлж болохгүйн учир?", a: ["Нүд өвдөх", "Жилжин азгүйтнэ гэж цээрлэдэг", "Хүмүүст муу харагдах"], c: 1 }
+    ];
+
+    let quizSet = []; let currentQ = 0; let score = 0; let userName = ""; let selectedOpt = null;
+
+    function startQuiz() {
+        userName = document.getElementById('username').value.trim();
+        if (!userName) return alert("Нэрээ оруулна уу!");
+        
+        // Pick 10 random questions from the 25 pool
+        quizSet = questionPool.sort(() => 0.5 - Math.random()).slice(0, 10);
+        
+        document.getElementById('login-step').classList.add('hidden');
+        document.getElementById('quiz-step').classList.remove('hidden');
+        showQuestion();
+    }
+
+    function showQuestion() {
+        selectedOpt = null;
+        const qData = quizSet[currentQ];
+        document.getElementById('progress-text').innerText = `Асуулт: ${currentQ + 1} / 10`;
+        let html = `<div class="question"><h3>${qData.q}</h3><ul class="options">`;
+        qData.a.forEach((opt, i) => {
+            html += `<li onclick="selectOption(this, ${i})">${opt}</li>`;
+        });
+        html += `</ul></div>`;
+        document.getElementById('question-area').innerHTML = html;
+    }
+
+    function selectOption(el, idx) {
+        document.querySelectorAll('.options li').forEach(li => li.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedOpt = idx;
+    }
+
+    function nextQuestion() {
+        if (selectedOpt === null) return alert("Хариултаа сонгоно уу!");
+        if (selectedOpt === quizSet[currentQ].c) score++;
+        
+        currentQ++;
+        if (currentQ < 10) {
+            showQuestion();
+        } else {
+            showResult();
+        }
+    }
+
+    function showResult() {
+        document.getElementById('quiz-step').classList.add('hidden');
+        document.getElementById('result-step').classList.remove('hidden');
+        document.getElementById('display-name').innerText = userName;
+        document.getElementById('score-val').innerText = score;
+        
+        saveScore(userName, score);
+        displayLeaderboard();
+    }
+
+    function saveScore(name, score) {
+        let history = JSON.parse(localStorage.getItem('tsagaan_sar_rank')) || [];
+        history.push({name, score, date: new Date().toLocaleDateString()});
+        history.sort((a, b) => b.score - a.score);
+        localStorage.setItem('tsagaan_sar_rank', JSON.stringify(history.slice(0, 10)));
+    }
+
+    function displayLeaderboard() {
+        let history = JSON.parse(localStorage.getItem('tsagaan_sar_rank')) || [];
+        const tbody = document.querySelector('#leaderboard tbody');
+        tbody.innerHTML = history.map((h, i) => `<tr><td>${i+1}</td><td>${h.name}</td><td>${h.score}</td></tr>`).join('');
+    }
+</script>
+</body>
+</html>
